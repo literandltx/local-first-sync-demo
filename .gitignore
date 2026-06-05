@@ -1,0 +1,42 @@
+# JetBrains IDEs (IntelliJ IDEA, etc.)
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Visual Studio Code
+.vscode/
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backend
+/backend/.gradle/
+/backend/build/
+/backend/out/
+/backend/bin/
+
+# Ignore Gradle GUI config
+gradle-app.setting
+
+!/backend/gradlew
+!/backend/gradlew.bat
+!/backend/gradle/wrapper/gradle-wrapper.jar
+
+# Frontend
+/frontend/node_modules/
+/frontend/.angular/
+/frontend/dist/
+/frontend/tmp/
+/frontend/out-tsc/
+
+# npm and yarn crash logs
+npm-debug.log*
+yarn-error.log*
+yarn-debug.log*
