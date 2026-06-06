@@ -1,7 +1,46 @@
-<div>
-  @if (healthService.isHealthy()) {
-    <p>Online</p>
-  } @else {
-    <p>Offline</p>
-  }
-</div>
+<main>
+  <header>
+    <h1>App</h1>
+    <p>
+      Status:
+      <strong [style.color]="healthService.isHealthy() ? 'green' : 'red'">
+        {{ healthService.isHealthy() ? 'UP' : 'DOWN' }}
+      </strong>
+    </p>
+  </header>
+
+  <section>
+    <h2>Labels</h2>
+
+    <div class="create-form">
+      <input type="color" [(ngModel)]="newLabelColor" />
+      <input type="text" placeholder="New label name..." [(ngModel)]="newLabelName" />
+      <button (click)="createLabel()" [disabled]="!newLabelName().trim()">Add Label</button>
+    </div>
+
+    <hr>
+
+    <ul>
+      @for (label of labels(); track label.uuid) {
+        <li>
+          @if (editingLabelId() !== label.uuid) {
+            <span class="color-swatch" [style.backgroundColor]="label.color">&nbsp;&nbsp;&nbsp;</span>
+            <strong>{{ label.name }}</strong>
+            <button (click)="startEdit(label)">Edit</button>
+            <button (click)="deleteLabel(label.uuid)" style="color: red;">Delete</button>
+          }
+          @else {
+            <input type="color" [(ngModel)]="editColor" />
+            <input type="text" [(ngModel)]="editName" />
+            <button (click)="saveEdit(label.uuid)">Save</button>
+            <button (click)="cancelEdit()">Cancel</button>
+          }
+        </li>
+      } @empty {
+        <li>No labels found. Create one above!</li>
+      }
+    </ul>
+  </section>
+
+  <router-outlet></router-outlet>
+</main>
