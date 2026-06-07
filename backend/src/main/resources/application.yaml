@@ -15,3 +15,11 @@ spring:
     console:
       enabled: true
       path: /h2-console
+
+management:
+  endpoints:
+    web:
+      cors:
+        allowed-origins: "http://localhost:4200"
+        allowed-methods: "GET,OPTIONS"
+        allowed-headers: "*"
