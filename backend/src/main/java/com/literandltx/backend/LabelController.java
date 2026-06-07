@@ -3,10 +3,12 @@ package com.literandltx.backend;
 import com.literandltx.backend.dto.LabelCreateRequestDto;
 import com.literandltx.backend.dto.LabelUpdateRequestDto;
 import com.literandltx.backend.dto.LabelResponseDto;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,7 +29,14 @@ public class LabelController {
     }
 
     @GetMapping
-    public ResponseEntity<List<LabelResponseDto>> getAllLabels() {
+    public ResponseEntity<List<LabelResponseDto>> getAllLabels(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime updatedAfter) {
+
+        if (updatedAfter != null) {
+            List<LabelResponseDto> updatedLabels = labelService.getLabelsUpdatedAfter(updatedAfter.toLocalDateTime());
+            return ResponseEntity.ok(updatedLabels);
+        }
+
         List<LabelResponseDto> labels = labelService.getAllLabels();
         return ResponseEntity.ok(labels);
     }
