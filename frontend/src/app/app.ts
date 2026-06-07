@@ -46,7 +46,6 @@ export class App implements OnInit {
     try {
       await this.labelService.createLabel(request);
 
-      this.fetchLabels();``
       this.newLabelName.set('');
       this.newLabelColor.set('#000000');
     } catch (err: any) {
@@ -73,7 +72,6 @@ export class App implements OnInit {
     try {
       await this.labelService.updateLabel(uuid, request);
 
-      this.fetchLabels();
       this.editingLabelId.set(null);
     } catch (err: any) {
       console.error('Failed to update label', err);

@@ -4,12 +4,14 @@ import {Observable, from, firstValueFrom, timer, Subscription} from 'rxjs';
 import {Label, LabelCreateRequest, LabelUpdateRequest} from './label.model';
 import {AppDB} from './app.db';
 import {HealthCheckService} from './health-check.service';
+import {liveQuery} from 'dexie';
+import {toObservable} from '@angular/core/rxjs-interop';
 
 @Injectable({
   providedIn: 'root'
 })
 export class LabelService implements OnDestroy {
-  private syncInterval = 60_000;
+  private syncInterval = 5_000;
 
   private http = inject(HttpClient);
   private db = inject(AppDB);
@@ -20,6 +22,13 @@ export class LabelService implements OnDestroy {
   private syncSubscription?: Subscription;
 
   constructor() {
+    toObservable(this.health.isHealthy).subscribe((isHealthy) => {
+      if (isHealthy) {
+        this.pullServerChanges();
+        this.processSyncQueue();
+      }
+    });
+
     this.startPeriodicSync();
   }
 
@@ -39,7 +48,7 @@ export class LabelService implements OnDestroy {
   }
 
   getLabels(): Observable<Label[]> {
-    return from(this.db.labels.toArray());
+    return from(liveQuery(() => this.db.labels.toArray()));
   }
 
   async createLabel(request: LabelCreateRequest): Promise<string> {
