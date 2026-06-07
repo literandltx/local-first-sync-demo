@@ -1,7 +1,9 @@
 package com.literandltx.backend.dto;
 
+import java.time.LocalDateTime;
+
 public record LabelUpdateRequestDto(
-    // No UUID here; it will be provided via the URL path in the controller
-    String name,
-    String color
+        String name,
+        String color,
+        LocalDateTime updatedAt
 ) {}

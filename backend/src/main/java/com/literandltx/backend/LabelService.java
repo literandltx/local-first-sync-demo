@@ -5,6 +5,7 @@ import com.literandltx.backend.dto.LabelUpdateRequestDto;
 import com.literandltx.backend.dto.LabelResponseDto;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -23,6 +24,8 @@ public class LabelService {
         label.setUuid(request.uuid());
         label.setName(request.name());
         label.setColor(request.color());
+        label.setCreatedAt(request.createdAt());
+        label.setUpdatedAt(request.updatedAt());
 
         Label savedLabel = labelRepository.save(label);
         return mapToResponse(savedLabel);
@@ -46,6 +49,12 @@ public class LabelService {
 
         existingLabel.setName(request.name());
         existingLabel.setColor(request.color());
+
+        if (request.updatedAt() != null) {
+            existingLabel.setUpdatedAt(request.updatedAt());
+        } else {
+            existingLabel.setUpdatedAt(LocalDateTime.now());
+        }
 
         Label updatedLabel = labelRepository.save(existingLabel);
         return mapToResponse(updatedLabel);

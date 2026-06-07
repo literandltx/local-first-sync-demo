@@ -3,7 +3,7 @@ import {HealthCheckService} from './core/health-check.service';
 import {Label} from './core/label.model';
 import {RouterOutlet} from '@angular/router';
 import {FormsModule} from '@angular/forms';
-import {LabelService} from './core/label.service'; // Imported for ngModel
+import {LabelService} from './core/label.service';
 
 @Component({
   selector: 'app-root',
@@ -29,12 +29,12 @@ export class App implements OnInit {
 
   fetchLabels() {
     this.labelService.getLabels().subscribe({
-      next: (data) => this.labels.set(data),
-      error: (err) => console.error('Failed to load labels.', err)
+      next: (data: Label[]) => this.labels.set(data),
+      error: (err: any) => console.error('Failed to load labels.', err)
     });
   }
 
-  createLabel() {
+  async createLabel() {
     if (!this.newLabelName().trim()) return;
 
     const request = {
@@ -43,14 +43,15 @@ export class App implements OnInit {
       color: this.newLabelColor()
     };
 
-    this.labelService.createLabel(request).subscribe({
-      next: (createdLabel) => {
-        this.labels.update(current => [...current, createdLabel]);
-        this.newLabelName.set('');
-        this.newLabelColor.set('#000000');
-      },
-      error: (err) => console.error('Failed to create label', err)
-    });
+    try {
+      await this.labelService.createLabel(request);
+
+      this.fetchLabels();``
+      this.newLabelName.set('');
+      this.newLabelColor.set('#000000');
+    } catch (err: any) {
+      console.error('Failed to create label', err);
+    }
   }
 
   startEdit(label: Label) {
@@ -63,31 +64,31 @@ export class App implements OnInit {
     this.editingLabelId.set(null);
   }
 
-  saveEdit(uuid: string) {
+  async saveEdit(uuid: string) {
     const request = {
       name: this.editName(),
       color: this.editColor()
     };
 
-    this.labelService.updateLabel(uuid, request).subscribe({
-      next: (updatedLabel) => {
-        this.labels.update(current =>
-          current.map(l => l.uuid === uuid ? updatedLabel : l)
-        );
-        this.editingLabelId.set(null);
-      },
-      error: (err) => console.error('Failed to update label', err)
-    });
+    try {
+      await this.labelService.updateLabel(uuid, request);
+
+      this.fetchLabels();
+      this.editingLabelId.set(null);
+    } catch (err: any) {
+      console.error('Failed to update label', err);
+    }
   }
 
-  deleteLabel(uuid: string) {
+  async deleteLabel(uuid: string) {
     if (!confirm('Are you sure you want to delete this label?')) return;
 
-    this.labelService.deleteLabel(uuid).subscribe({
-      next: () => {
-        this.labels.update(current => current.filter(l => l.uuid !== uuid));
-      },
-      error: (err) => console.error('Failed to delete label', err)
-    });
+    try {
+      await this.labelService.deleteLabel(uuid);
+
+      this.labels.update(current => current.filter(l => l.uuid !== uuid));
+    } catch (err: any) {
+      console.error('Failed to delete label', err);
+    }
   }
 }
