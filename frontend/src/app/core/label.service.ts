@@ -1,28 +1,41 @@
-import {Injectable, inject} from '@angular/core';
+import {Injectable, inject, OnDestroy} from '@angular/core';
 import {HttpClient, HttpErrorResponse} from '@angular/common/http';
-import {Observable, from, firstValueFrom} from 'rxjs';
+import {Observable, from, firstValueFrom, timer, Subscription} from 'rxjs';
 import {Label, LabelCreateRequest, LabelUpdateRequest} from './label.model';
-import {AppDB, SyncAction} from './app.db';
+import {AppDB} from './app.db';
 import {HealthCheckService} from './health-check.service';
 
 @Injectable({
   providedIn: 'root'
 })
-export class LabelService {
+export class LabelService implements OnDestroy {
+  private syncInterval = 60_000;
+
   private http = inject(HttpClient);
   private db = inject(AppDB);
   private health = inject(HealthCheckService);
 
   private apiUrl: string = 'http://localhost:8080/api/labels';
   private isSyncing = false;
+  private syncSubscription?: Subscription;
 
   constructor() {
-    this.initSync();
+    this.startPeriodicSync();
   }
 
-  async initSync() {
-    await this.pullServerChanges();
-    await this.processSyncQueue();
+  startPeriodicSync() {
+    this.syncSubscription = timer(0, this.syncInterval).subscribe(async () => {
+      if (this.health.isHealthy()) {
+        await this.pullServerChanges();
+        await this.processSyncQueue();
+      }
+    });
+  }
+
+  ngOnDestroy() {
+    if (this.syncSubscription) {
+      this.syncSubscription.unsubscribe();
+    }
   }
 
   getLabels(): Observable<Label[]> {
@@ -70,7 +83,9 @@ export class LabelService {
       entityId,
       action,
       payload,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      status: 'PENDING',
+      retries: 0
     });
   }
 
@@ -109,7 +124,6 @@ export class LabelService {
               });
 
               break;
-
             } else {
               console.warn(`Discarding unrecoverable request (HTTP ${error.status})`);
               await this.db.syncQueue.delete(item.id!);
