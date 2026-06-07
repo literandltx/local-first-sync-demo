@@ -1,10 +1,9 @@
-import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, from, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
-import { Label, LabelCreateRequest, LabelUpdateRequest } from './label.model';
-import { AppDB } from './app.db';
-import { HealthCheckService } from './health-check.service';
+import {Injectable, inject} from '@angular/core';
+import {HttpClient} from '@angular/common/http';
+import {Observable, from, firstValueFrom} from 'rxjs';
+import {Label, LabelCreateRequest, LabelUpdateRequest} from './label.model';
+import {AppDB, SyncAction} from './app.db';
+import {HealthCheckService} from './health-check.service';
 
 @Injectable({
   providedIn: 'root'
@@ -15,70 +14,108 @@ export class LabelService {
   private health = inject(HealthCheckService);
 
   private apiUrl: string = 'http://localhost:8080/api/labels';
+  private isSyncing = false;
+
+  constructor() {
+    this.initSync();
+  }
+
+  async initSync() {
+    await this.pullServerChanges();
+    await this.processSyncQueue();
+  }
 
   getLabels(): Observable<Label[]> {
     return from(this.db.labels.toArray());
   }
 
-  createLabel(request: LabelCreateRequest): Observable<string> {
+  async createLabel(request: LabelCreateRequest): Promise<string> {
     const now = new Date().toISOString();
-    const newLabel: Label = {
-      ...request,
-      createdAt: now,
-      updatedAt: now
-    };
+    const newLabel: Label = {...request, createdAt: now, updatedAt: now};
 
-    const promise = this.db.labels.add(newLabel).then((id) => {
-      this.syncCreateIfHealthy(newLabel);
-      return id;
+    await this.db.transaction('rw', this.db.labels, this.db.syncQueue, async () => {
+      await this.db.labels.add(newLabel);
+      await this.queueAction(request.uuid, 'CREATE', newLabel);
     });
 
-    return from(promise);
+    this.processSyncQueue();
+    return request.uuid;
   }
 
-  updateLabel(id: string, request: LabelUpdateRequest): Observable<number> {
-    const updateData = {
-      ...request,
-      updatedAt: new Date().toISOString()
-    };
+  async updateLabel(id: string, request: LabelUpdateRequest): Promise<number> {
+    const now = new Date().toISOString();
+    const updateData = {...request, updatedAt: now};
 
-    const promise = this.db.labels.update(id, updateData).then((updatedCount) => {
-      this.syncUpdateIfHealthy(id, request);
-      return updatedCount;
+    let updatedCount = 0;
+    await this.db.transaction('rw', this.db.labels, this.db.syncQueue, async () => {
+      updatedCount = await this.db.labels.update(id, updateData);
+      await this.queueAction(id, 'UPDATE', updateData);
     });
 
-    return from(promise);
+    this.processSyncQueue();
+    return updatedCount;
   }
 
-  deleteLabel(id: string): Observable<void> {
-    const promise = this.db.labels.delete(id).then(() => {
-      this.syncDeleteIfHealthy(id);
+  async deleteLabel(id: string): Promise<void> {
+    await this.db.transaction('rw', this.db.labels, this.db.syncQueue, async () => {
+      await this.db.labels.delete(id);
+      await this.queueAction(id, 'DELETE', null);
     });
 
-    return from(promise);
+    this.processSyncQueue();
   }
 
-  private syncCreateIfHealthy(label: Label) {
-    if (this.health.isHealthy()) {
-      this.http.post<Label>(this.apiUrl, label).pipe(
-        catchError(err => of(null))
-      ).subscribe();
+  private async queueAction(entityId: string, action: 'CREATE' | 'UPDATE' | 'DELETE', payload: any) {
+    await this.db.syncQueue.add({
+      entityId,
+      action,
+      payload,
+      timestamp: Date.now()
+    });
+  }
+
+  private async processSyncQueue() {
+    if (!this.health.isHealthy() || this.isSyncing) return;
+    this.isSyncing = true;
+
+    try {
+      const queue = await this.db.syncQueue.orderBy('id').toArray();
+
+      for (const item of queue) {
+        try {
+          if (item.action === 'CREATE') {
+            await firstValueFrom(this.http.post(this.apiUrl, item.payload));
+          } else if (item.action === 'UPDATE') {
+            await firstValueFrom(this.http.put(`${this.apiUrl}/${item.entityId}`, item.payload));
+          } else if (item.action === 'DELETE') {
+            await firstValueFrom(this.http.delete(`${this.apiUrl}/${item.entityId}`));
+          }
+          await this.db.syncQueue.delete(item.id!);
+        } catch (error) {
+          break;
+        }
+      }
+    } finally {
+      this.isSyncing = false;
     }
   }
 
-  private syncUpdateIfHealthy(id: string, request: LabelUpdateRequest) {
-    if (this.health.isHealthy()) {
-      this.http.put<Label>(`${this.apiUrl}/${id}`, request).pipe(
-        catchError(err => of(null))
-      ).subscribe();
-    }
-  }
+  private async pullServerChanges() {
+    if (!this.health.isHealthy()) return;
 
-  private syncDeleteIfHealthy(id: string) {
-    if (this.health.isHealthy()) {
-      this.http.delete<void>(`${this.apiUrl}/${id}`).pipe(
-        catchError(err => of(null))
-      ).subscribe();
+    const lastSyncTime = localStorage.getItem('lastLabelSync') || '1970-01-01T00:00:00.000Z';
+
+    try {
+      const updatedLabels = await firstValueFrom(
+        this.http.get<Label[]>(`${this.apiUrl}?updatedAfter=${lastSyncTime}`)
+      );
+
+      if (updatedLabels && updatedLabels.length > 0) {
+        await this.db.labels.bulkPut(updatedLabels);
+        localStorage.setItem('lastLabelSync', new Date().toISOString());
+      }
+    } catch (error) {
+      console.error('Failed to pull delta updates', error);
     }
   }
 }
