@@ -40,44 +40,6 @@ export class LabelService implements OnDestroy {
     this.connectWebSocket(this.baseUrl);
   }
 
-  private connectWebSocket(url: string) {
-    if (!url) {
-      return;
-    }
-
-    this.rxStomp.deactivate();
-    if (this.wsSubscription) {
-      this.wsSubscription.unsubscribe();
-    }
-    if (this.connectionSubscription) {
-      this.connectionSubscription.unsubscribe();
-    }
-
-    const wsUrl = url.replace(/^http/, 'ws') + '/ws-labels';
-
-    this.rxStomp.configure({
-      brokerURL: wsUrl,
-      reconnectDelay: 5000,
-      heartbeatIncoming: 4000,
-      heartbeatOutgoing: 4000,
-    });
-
-    this.rxStomp.activate();
-
-    this.connectionSubscription = this.rxStomp.connected$.subscribe(() => {
-      console.log('WebSocket Connected! Pulling updates...');
-      this.pullServerChanges();
-      this.processSyncQueue();
-    });
-
-    this.wsSubscription = this.rxStomp.watch('/topic/labels').subscribe(async (message) => {
-      const updatedLabel: Label = JSON.parse(message.body);
-      console.log('Update received via WebSocket', updatedLabel);
-      await this.db.labels.put(updatedLabel);
-      localStorage.setItem('lastLabelSync', new Date().toISOString());
-    });
-  }
-
   ngOnDestroy() {
     this.rxStomp.deactivate();
     if (this.wsSubscription) {
@@ -131,6 +93,45 @@ export class LabelService implements OnDestroy {
 
     this.processSyncQueue();
   }
+
+  private connectWebSocket(url: string) {
+    if (!url) {
+      return;
+    }
+
+    this.rxStomp.deactivate();
+    if (this.wsSubscription) {
+      this.wsSubscription.unsubscribe();
+    }
+    if (this.connectionSubscription) {
+      this.connectionSubscription.unsubscribe();
+    }
+
+    const wsUrl = url.replace(/^http/, 'ws') + '/ws-labels';
+
+    this.rxStomp.configure({
+      brokerURL: wsUrl,
+      reconnectDelay: 5000,
+      heartbeatIncoming: 4000,
+      heartbeatOutgoing: 4000,
+    });
+
+    this.rxStomp.activate();
+
+    this.connectionSubscription = this.rxStomp.connected$.subscribe(() => {
+      console.log('WebSocket Connected! Pulling updates...');
+      this.pullServerChanges();
+      this.processSyncQueue();
+    });
+
+    this.wsSubscription = this.rxStomp.watch('/topic/labels').subscribe(async (message) => {
+      const updatedLabel: Label = JSON.parse(message.body);
+      console.log('Update received via WebSocket', updatedLabel);
+      await this.db.labels.put(updatedLabel);
+      localStorage.setItem('lastLabelSync', new Date().toISOString());
+    });
+  }
+
 
   private async queueAction(entityId: string, action: 'CREATE' | 'UPDATE' | 'DELETE', payload: any) {
     await this.db.syncQueue.add({
