@@ -20,6 +20,8 @@ management:
   endpoints:
     web:
       cors:
-        allowed-origins: "http://localhost:4200"
+        allowed-origins:
+          - "http://localhost:4200"
+          - "https://literandltx.github.io"
         allowed-methods: "GET,OPTIONS"
         allowed-headers: "*"
