@@ -17,6 +17,9 @@ export class App implements OnInit {
   private labelService = inject(LabelService);
   private appDb = inject(AppDB);
 
+  public backendUrl = signal(localStorage.getItem('backend_url') || '');
+  public syncInterval = signal(parseInt(localStorage.getItem('sync_interval') || '5000', 10));
+
   public labels = signal<Label[]>([]);
   public newLabelName = signal('');
   public newLabelColor = signal('#000000');
@@ -25,8 +28,21 @@ export class App implements OnInit {
   public editColor = signal('');
 
   ngOnInit() {
-    this.healthService.startHealthCheck();
+    if (this.backendUrl()) {
+      this.healthService.startHealthCheck();
+    }
     this.fetchLabels();
+  }
+
+  applySettings() {
+    const url = this.backendUrl().trim();
+    const interval = Number(this.syncInterval());
+
+    localStorage.setItem('backend_url', url);
+    localStorage.setItem('sync_interval', interval.toString());
+
+    this.healthService.updateBaseUrl(url);
+    this.labelService.updateConfig(url, interval);
   }
 
   fetchLabels() {

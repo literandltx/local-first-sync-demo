@@ -14,20 +14,31 @@ export class HealthCheckService implements OnDestroy {
   private http = inject(HttpClient);
   private pollingSubscription: Subscription | undefined;
 
-  private healthUrl: string = 'http://localhost:8080/actuator/health'
+  private baseUrl: string = localStorage.getItem('backend_url') || '';
 
   private _isHealthy = signal<boolean>(false);
   public isHealthy = this._isHealthy.asReadonly();
 
-  startHealthCheck() {
-    if (this.pollingSubscription) {
-      return;
+  updateBaseUrl(url: string) {
+    this.baseUrl = url.replace(/\/$/, ''); // Strip trailing slash if accidentally added
+    this.stopHealthCheck();
+    if (this.baseUrl) {
+      this.startHealthCheck();
+    } else {
+      this._isHealthy.set(false);
     }
+  }
 
-    this.pollingSubscription = timer(0, 60000)
+  startHealthCheck() {
+    if (this.pollingSubscription) return;
+    if (!this.baseUrl) return;
+
+    const healthUrl = `${this.baseUrl}/actuator/health`;
+
+    this.pollingSubscription = timer(0, 10000) // Poll health every 10s
       .pipe(
         switchMap(() =>
-          this.http.get<HealthResponse>(this.healthUrl).pipe(
+          this.http.get<HealthResponse>(healthUrl).pipe(
             catchError(() => {
               this._isHealthy.set(false);
               return of(null);

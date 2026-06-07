@@ -11,28 +11,42 @@ import {toObservable} from '@angular/core/rxjs-interop';
   providedIn: 'root'
 })
 export class LabelService implements OnDestroy {
-  private syncInterval = 5_000;
-
   private http = inject(HttpClient);
   private db = inject(AppDB);
   private health = inject(HealthCheckService);
 
-  private apiUrl: string = 'http://localhost:8080/api/labels';
+  private baseUrl = localStorage.getItem('backend_url') || '';
+  private syncInterval = parseInt(localStorage.getItem('sync_interval') || '5000', 10);
+
   private isSyncing = false;
   private syncSubscription?: Subscription;
 
   constructor() {
     toObservable(this.health.isHealthy).subscribe((isHealthy) => {
-      if (isHealthy) {
+      if (isHealthy && this.baseUrl) {
         this.pullServerChanges();
         this.processSyncQueue();
       }
     });
 
+    if (this.baseUrl) {
+      this.startPeriodicSync();
+    }
+  }
+
+  updateConfig(url: string, interval: number) {
+    this.baseUrl = url.replace(/\/$/, '');
+    this.syncInterval = interval;
     this.startPeriodicSync();
   }
 
   startPeriodicSync() {
+    if (this.syncSubscription) {
+      this.syncSubscription.unsubscribe();
+    }
+
+    if (!this.baseUrl) return;
+
     this.syncSubscription = timer(0, this.syncInterval).subscribe(async () => {
       if (this.health.isHealthy()) {
         await this.pullServerChanges();
@@ -168,5 +182,9 @@ export class LabelService implements OnDestroy {
     } catch (error) {
       console.error('Failed to pull delta updates', error);
     }
+  }
+
+  private get apiUrl(): string {
+    return `${this.baseUrl}/api/labels`;
   }
 }
