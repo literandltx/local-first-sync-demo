@@ -48,12 +48,14 @@ export class LabelService implements OnDestroy {
   }
 
   getLabels(): Observable<Label[]> {
-    return from(liveQuery(() => this.db.labels.toArray()));
+    return from(liveQuery(() =>
+      this.db.labels.filter(label => !label.deleted).toArray()
+    ));
   }
 
   async createLabel(request: LabelCreateRequest): Promise<string> {
     const now = new Date().toISOString();
-    const newLabel: Label = {...request, createdAt: now, updatedAt: now};
+    const newLabel: Label = {...request, createdAt: now, updatedAt: now, deleted: false};
 
     await this.db.transaction('rw', this.db.labels, this.db.syncQueue, async () => {
       await this.db.labels.add(newLabel);
@@ -79,8 +81,10 @@ export class LabelService implements OnDestroy {
   }
 
   async deleteLabel(id: string): Promise<void> {
+    const now = new Date().toISOString();
+
     await this.db.transaction('rw', this.db.labels, this.db.syncQueue, async () => {
-      await this.db.labels.delete(id);
+      await this.db.labels.update(id, { deleted: true, updatedAt: now });
       await this.queueAction(id, 'DELETE', null);
     });
 

@@ -9,5 +9,7 @@ import java.util.UUID;
 
 @Repository
 public interface LabelRepository extends JpaRepository<Label, UUID> {
+    List<Label> findByDeletedFalse();
+
     List<Label> findByUpdatedAtAfter(LocalDateTime updatedAfter);
 }

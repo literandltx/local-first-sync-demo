@@ -4,6 +4,7 @@ export interface Label {
   color: string;
   createdAt: string;
   updatedAt: string;
+  deleted: boolean;
 }
 
 export interface LabelCreateRequest {

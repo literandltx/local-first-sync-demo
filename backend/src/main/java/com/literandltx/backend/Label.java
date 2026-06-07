@@ -24,6 +24,9 @@ public class Label {
     @Column(nullable = false)
     private String color;
 
+    @Column(nullable = false)
+    private boolean deleted = false;
+    
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

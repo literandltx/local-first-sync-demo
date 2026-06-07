@@ -38,22 +38,16 @@ public class LabelService {
     }
 
     public List<LabelResponseDto> getAllLabels() {
-        log.debug("Fetching all labels from the database");
-
-        List<Label> labels = labelRepository.findAll();
-        log.info("Retrieved {} total labels", labels.size());
-
+        log.debug("Fetching all active labels from the database");
+        List<Label> labels = labelRepository.findByDeletedFalse();
         return labels.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     public List<LabelResponseDto> getLabelsUpdatedAfter(LocalDateTime updatedAfter) {
-        log.info("Fetching labels updated after: {}", updatedAfter);
-
+        log.info("Fetching delta updates after: {}", updatedAfter);
         List<Label> labels = labelRepository.findByUpdatedAtAfter(updatedAfter);
-        log.debug("Found {} labels updated after the requested timestamp", labels.size());
-
         return labels.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -96,15 +90,14 @@ public class LabelService {
     }
 
     public void deleteLabel(UUID id) {
-        log.info("Attempting to delete label with ID: {}", id);
+        log.info("Attempting to soft-delete label with ID: {}", id);
 
-        if (!labelRepository.existsById(id)) {
-            log.warn("Label with ID {} does not exist. Ignoring delete request.", id);
-            return;
-        }
-
-        labelRepository.deleteById(id);
-        log.info("Successfully deleted label with ID: {}", id);
+        labelRepository.findById(id).ifPresentOrElse(label -> {
+            label.setDeleted(true);
+            label.setUpdatedAt(LocalDateTime.now());
+            labelRepository.save(label);
+            log.info("Successfully soft-deleted label with ID: {}", id);
+        }, () -> log.warn("Label with ID {} does not exist. Ignoring.", id));
     }
 
     private LabelResponseDto mapToResponse(Label label) {
@@ -113,7 +106,8 @@ public class LabelService {
                 label.getName(),
                 label.getColor(),
                 label.getCreatedAt(),
-                label.getUpdatedAt()
+                label.getUpdatedAt(),
+                label.isDeleted()
         );
     }
 }
