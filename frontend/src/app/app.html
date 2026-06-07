@@ -7,6 +7,9 @@
         {{ healthService.isHealthy() ? 'UP' : 'DOWN' }}
       </strong>
     </p>
+    <button (click)="refreshDb()" style="margin-top: 10px;">
+      Refresh DB (Clear All)
+    </button>
   </header>
 
   <section>

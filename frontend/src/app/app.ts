@@ -4,6 +4,7 @@ import {Label} from './core/label.model';
 import {RouterOutlet} from '@angular/router';
 import {FormsModule} from '@angular/forms';
 import {LabelService} from './core/label.service';
+import {AppDB} from './core/app.db';
 
 @Component({
   selector: 'app-root',
@@ -14,6 +15,7 @@ import {LabelService} from './core/label.service';
 export class App implements OnInit {
   public healthService = inject(HealthCheckService);
   private labelService = inject(LabelService);
+  private appDb = inject(AppDB);
 
   public labels = signal<Label[]>([]);
   public newLabelName = signal('');
@@ -87,6 +89,19 @@ export class App implements OnInit {
       this.labels.update(current => current.filter(l => l.uuid !== uuid));
     } catch (err: any) {
       console.error('Failed to delete label', err);
+    }
+  }
+
+  async refreshDb() {
+    if (!confirm('Are you sure you want to delete ALL data in the database?')) return;
+
+    try {
+      await this.appDb.labels.clear();
+      await this.appDb.syncQueue.clear();
+      this.labels.set([]);
+      console.log('Database successfully cleared.');
+    } catch (err: any) {
+      console.error('Failed to clear the database', err);
     }
   }
 }
