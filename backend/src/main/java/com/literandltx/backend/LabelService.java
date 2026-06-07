@@ -4,6 +4,7 @@ import com.literandltx.backend.dto.LabelCreateRequestDto;
 import com.literandltx.backend.dto.LabelUpdateRequestDto;
 import com.literandltx.backend.dto.LabelResponseDto;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -16,9 +17,11 @@ import java.util.stream.Collectors;
 public class LabelService {
 
     private final LabelRepository labelRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
-    public LabelService(LabelRepository labelRepository) {
+    public LabelService(LabelRepository labelRepository, SimpMessagingTemplate messagingTemplate) {
         this.labelRepository = labelRepository;
+        this.messagingTemplate = messagingTemplate;
     }
 
     public LabelResponseDto createLabel(LabelCreateRequestDto request) {
@@ -34,7 +37,9 @@ public class LabelService {
         Label savedLabel = labelRepository.save(label);
         log.debug("Successfully saved label to database with UUID: {}", savedLabel.getUuid());
 
-        return mapToResponse(savedLabel);
+        LabelResponseDto response = mapToResponse(savedLabel);
+        broadcastUpdate(response);
+        return response;
     }
 
     public List<LabelResponseDto> getAllLabels() {
@@ -86,7 +91,9 @@ public class LabelService {
         Label updatedLabel = labelRepository.save(existingLabel);
         log.debug("Successfully updated label with ID: {}", updatedLabel.getUuid());
 
-        return mapToResponse(updatedLabel);
+        LabelResponseDto response = mapToResponse(updatedLabel);
+        broadcastUpdate(response);
+        return response;
     }
 
     public void deleteLabel(UUID id) {
@@ -95,7 +102,9 @@ public class LabelService {
         labelRepository.findById(id).ifPresentOrElse(label -> {
             label.setDeleted(true);
             label.setUpdatedAt(LocalDateTime.now());
-            labelRepository.save(label);
+            Label savedLabel = labelRepository.save(label);
+
+            broadcastUpdate(mapToResponse(savedLabel));
             log.info("Successfully soft-deleted label with ID: {}", id);
         }, () -> log.warn("Label with ID {} does not exist. Ignoring.", id));
     }
@@ -109,5 +118,10 @@ public class LabelService {
                 label.getUpdatedAt(),
                 label.isDeleted()
         );
+    }
+
+    private void broadcastUpdate(LabelResponseDto label) {
+        log.debug("Broadcasting label update to WebSocket clients: {}", label.uuid());
+        messagingTemplate.convertAndSend("/topic/labels", label);
     }
 }

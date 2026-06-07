@@ -6,6 +6,7 @@ import {AppDB} from './app.db';
 import {HealthCheckService} from './health-check.service';
 import {liveQuery} from 'dexie';
 import {toObservable} from '@angular/core/rxjs-interop';
+import {RxStomp} from '@stomp/rx-stomp';
 
 @Injectable({
   providedIn: 'root'
@@ -16,48 +17,74 @@ export class LabelService implements OnDestroy {
   private health = inject(HealthCheckService);
 
   private baseUrl = localStorage.getItem('backend_url') || '';
-  private syncInterval = parseInt(localStorage.getItem('sync_interval') || '5000', 10);
-
   private isSyncing = false;
-  private syncSubscription?: Subscription;
+
+  private rxStomp = new RxStomp();
+  private wsSubscription?: Subscription;
+  private connectionSubscription?: Subscription;
 
   constructor() {
     toObservable(this.health.isHealthy).subscribe((isHealthy) => {
       if (isHealthy && this.baseUrl) {
-        this.pullServerChanges();
         this.processSyncQueue();
       }
     });
 
     if (this.baseUrl) {
-      this.startPeriodicSync();
+      this.connectWebSocket(this.baseUrl);
     }
   }
 
-  updateConfig(url: string, interval: number) {
+  updateConfig(url: string) {
     this.baseUrl = url.replace(/\/$/, '');
-    this.syncInterval = interval;
-    this.startPeriodicSync();
+    this.connectWebSocket(this.baseUrl);
   }
 
-  startPeriodicSync() {
-    if (this.syncSubscription) {
-      this.syncSubscription.unsubscribe();
+  private connectWebSocket(url: string) {
+    if (!url) {
+      return;
     }
 
-    if (!this.baseUrl) return;
+    this.rxStomp.deactivate();
+    if (this.wsSubscription) {
+      this.wsSubscription.unsubscribe();
+    }
+    if (this.connectionSubscription) {
+      this.connectionSubscription.unsubscribe();
+    }
 
-    this.syncSubscription = timer(0, this.syncInterval).subscribe(async () => {
-      if (this.health.isHealthy()) {
-        await this.pullServerChanges();
-        await this.processSyncQueue();
-      }
+    const wsUrl = url.replace(/^http/, 'ws') + '/ws-labels';
+
+    this.rxStomp.configure({
+      brokerURL: wsUrl,
+      reconnectDelay: 5000,
+      heartbeatIncoming: 4000,
+      heartbeatOutgoing: 4000,
+    });
+
+    this.rxStomp.activate();
+
+    this.connectionSubscription = this.rxStomp.connected$.subscribe(() => {
+      console.log('WebSocket Connected! Pulling updates...');
+      this.pullServerChanges();
+      this.processSyncQueue();
+    });
+
+    this.wsSubscription = this.rxStomp.watch('/topic/labels').subscribe(async (message) => {
+      const updatedLabel: Label = JSON.parse(message.body);
+      console.log('Update received via WebSocket', updatedLabel);
+      await this.db.labels.put(updatedLabel);
+      localStorage.setItem('lastLabelSync', new Date().toISOString());
     });
   }
 
   ngOnDestroy() {
-    if (this.syncSubscription) {
-      this.syncSubscription.unsubscribe();
+    this.rxStomp.deactivate();
+    if (this.wsSubscription) {
+      this.wsSubscription.unsubscribe();
+    }
+    if (this.connectionSubscription) {
+      this.connectionSubscription.unsubscribe();
     }
   }
 
@@ -98,7 +125,7 @@ export class LabelService implements OnDestroy {
     const now = new Date().toISOString();
 
     await this.db.transaction('rw', this.db.labels, this.db.syncQueue, async () => {
-      await this.db.labels.update(id, { deleted: true, updatedAt: now });
+      await this.db.labels.update(id, {deleted: true, updatedAt: now});
       await this.queueAction(id, 'DELETE', null);
     });
 
@@ -166,8 +193,6 @@ export class LabelService implements OnDestroy {
   }
 
   private async pullServerChanges() {
-    if (!this.health.isHealthy()) return;
-
     const lastSyncTime = localStorage.getItem('lastLabelSync') || '1970-01-01T00:00:00.000Z';
 
     try {

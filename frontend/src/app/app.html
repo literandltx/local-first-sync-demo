@@ -17,17 +17,8 @@
              placeholder="https://app.run.app"
              [(ngModel)]="backendUrl"
              style="flex: 1; min-width: 250px; padding: 5px;" />
-
-      <select [(ngModel)]="syncInterval" style="padding: 5px;">
-        <option [value]="5000">Sync every 5s</option>
-        <option [value]="15000">Sync every 15s</option>
-        <option [value]="60000">Sync every 60s</option>
-        <option [value]="600000">Sync every 10 mins</option>
-      </select>
-
       <button (click)="applySettings()">Apply Settings</button>
       <button (click)="refreshDb()">Clear Local DB</button>
-
     </div>
   </section>
 

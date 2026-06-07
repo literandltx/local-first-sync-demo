@@ -18,7 +18,6 @@ export class App implements OnInit {
   private appDb = inject(AppDB);
 
   public backendUrl = signal(localStorage.getItem('backend_url') || '');
-  public syncInterval = signal(parseInt(localStorage.getItem('sync_interval') || '5000', 10));
 
   public labels = signal<Label[]>([]);
   public newLabelName = signal('');
@@ -36,13 +35,10 @@ export class App implements OnInit {
 
   applySettings() {
     const url = this.backendUrl().trim();
-    const interval = Number(this.syncInterval());
-
     localStorage.setItem('backend_url', url);
-    localStorage.setItem('sync_interval', interval.toString());
 
     this.healthService.updateBaseUrl(url);
-    this.labelService.updateConfig(url, interval);
+    this.labelService.updateConfig(url);
   }
 
   fetchLabels() {
@@ -109,8 +105,6 @@ export class App implements OnInit {
   }
 
   async refreshDb() {
-    if (!confirm('Are you sure you want to delete ALL data in the database?')) return;
-
     try {
       await this.appDb.labels.clear();
       await this.appDb.syncQueue.clear();
