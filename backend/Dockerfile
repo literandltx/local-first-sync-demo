@@ -5,8 +5,10 @@ WORKDIR /app
 # Copy the entire backend project into the container
 COPY . .
 
-RUN --mount=type=cache,target=/root/.gradle \
-    ./gradlew clean bootJar -x test
+#RUN --mount=type=cache,target=/root/.gradle \
+#    ./gradlew clean bootJar -x test
+
+RUN ./gradlew clean bootJar -x test
 
 # --- Stage 2: Runtime ---
 FROM eclipse-temurin:17-jre
