@@ -5,7 +5,7 @@ import {Label, LabelCreateRequest, LabelUpdateRequest} from './label.model';
 import {AppDB} from './app.db';
 import {HealthCheckService} from './health-check.service';
 import {liveQuery} from 'dexie';
-import {toObservable} from '@angular/core/rxjs-interop';
+import {takeUntilDestroyed, toObservable} from '@angular/core/rxjs-interop';
 import {RxStomp} from '@stomp/rx-stomp';
 
 @Injectable({
@@ -24,7 +24,9 @@ export class LabelService implements OnDestroy {
   private connectionSubscription?: Subscription;
 
   constructor() {
-    toObservable(this.health.isHealthy).subscribe((isHealthy) => {
+    toObservable(this.health.isHealthy)
+      .pipe(takeUntilDestroyed())
+      .subscribe((isHealthy) => {
       if (isHealthy && this.baseUrl) {
         this.processSyncQueue();
       }
@@ -118,10 +120,10 @@ export class LabelService implements OnDestroy {
 
     this.rxStomp.activate();
 
-    this.connectionSubscription = this.rxStomp.connected$.subscribe(() => {
+    this.connectionSubscription = this.rxStomp.connected$.subscribe(async () => {
       console.log('WebSocket Connected! Pulling updates...');
-      this.pullServerChanges();
-      this.processSyncQueue();
+      await this.processSyncQueue();
+      await this.pullServerChanges();
     });
 
     this.wsSubscription = this.rxStomp.watch('/topic/labels').subscribe(async (message) => {
