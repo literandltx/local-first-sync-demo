@@ -8,6 +8,10 @@ export interface SyncAction {
   action: 'CREATE' | 'UPDATE' | 'DELETE';
   payload: any;
   timestamp: number;
+
+  status?: 'PENDING' | 'ERROR';
+  retries?: number;
+  lastError?: string;
 }
 
 @Injectable({

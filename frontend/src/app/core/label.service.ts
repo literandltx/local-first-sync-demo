@@ -1,5 +1,5 @@
 import {Injectable, inject} from '@angular/core';
-import {HttpClient} from '@angular/common/http';
+import {HttpClient, HttpErrorResponse} from '@angular/common/http';
 import {Observable, from, firstValueFrom} from 'rxjs';
 import {Label, LabelCreateRequest, LabelUpdateRequest} from './label.model';
 import {AppDB, SyncAction} from './app.db';
@@ -91,8 +91,32 @@ export class LabelService {
             await firstValueFrom(this.http.delete(`${this.apiUrl}/${item.entityId}`));
           }
           await this.db.syncQueue.delete(item.id!);
-        } catch (error) {
-          break;
+
+        } catch (error: any) {
+          console.error(`Sync action ${item.action} failed for ${item.entityId}`, error);
+
+          if (error instanceof HttpErrorResponse) {
+            const isRecoverable =
+              error.status === 429 ||
+              error.status >= 500 ||
+              error.status === 0;
+
+            if (isRecoverable) {
+              await this.db.syncQueue.update(item.id!, {
+                status: 'ERROR',
+                retries: (item.retries || 0) + 1,
+                lastError: `HTTP ${error.status}: ${error.message}`
+              });
+
+              break;
+
+            } else {
+              console.warn(`Discarding unrecoverable request (HTTP ${error.status})`);
+              await this.db.syncQueue.delete(item.id!);
+            }
+          } else {
+            await this.db.syncQueue.delete(item.id!);
+          }
         }
       }
     } finally {
