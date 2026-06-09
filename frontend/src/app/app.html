@@ -9,14 +9,19 @@
     </p>
   </header>
 
-  <section class="config-panel" style="background: #f4f4f4; padding: 15px; margin-bottom: 20px; border-radius: 8px;">
+  <section class="config-panel"
+           style="background: #f4f4f4; padding: 15px; margin-bottom: 20px; border-radius: 8px;">
     <h2>Configuration</h2>
     <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
 
       <input type="text"
+             placeholder="User ID (e.g. user_123)"
+             [(ngModel)]="userId"
+             style="width: 150px; padding: 5px;"/>
+      <input type="text"
              placeholder="https://app.run.app"
              [(ngModel)]="backendUrl"
-             style="flex: 1; min-width: 250px; padding: 5px;" />
+             style="flex: 1; min-width: 250px; padding: 5px;"/>
       <button (click)="applySettings()">Apply Settings</button>
       <button (click)="refreshDb()">Clear Local DB</button>
     </div>
@@ -26,9 +31,11 @@
     <h2>Labels</h2>
 
     <div class="create-form">
-      <input type="color" [(ngModel)]="newLabelColor" />
-      <input type="text" placeholder="New label name..." [(ngModel)]="newLabelName" />
-      <button (click)="createLabel()" [disabled]="!newLabelName().trim() || !backendUrl()">Add Label</button>
+      <input type="color" [(ngModel)]="newLabelColor"/>
+      <input type="text" placeholder="New label name..." [(ngModel)]="newLabelName"/>
+      <button (click)="createLabel()" [disabled]="!newLabelName().trim() || !backendUrl()">Add
+        Label
+      </button>
     </div>
 
     <hr>
@@ -37,14 +44,14 @@
       @for (label of labels(); track label.uuid) {
         <li>
           @if (editingLabelId() !== label.uuid) {
-            <span class="color-swatch" [style.backgroundColor]="label.color">&nbsp;&nbsp;&nbsp;</span>
+            <span class="color-swatch"
+                  [style.backgroundColor]="label.color">&nbsp;&nbsp;&nbsp;</span>
             <strong>{{ label.name }}</strong>
             <button (click)="startEdit(label)">Edit</button>
             <button (click)="deleteLabel(label.uuid)" style="color: red;">Delete</button>
-          }
-          @else {
-            <input type="color" [(ngModel)]="editColor" />
-            <input type="text" [(ngModel)]="editName" />
+          } @else {
+            <input type="color" [(ngModel)]="editColor"/>
+            <input type="text" [(ngModel)]="editName"/>
             <button (click)="saveEdit(label.uuid)">Save</button>
             <button (click)="cancelEdit()">Cancel</button>
           }

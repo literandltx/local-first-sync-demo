@@ -9,7 +9,7 @@ import java.util.UUID;
 
 @Repository
 public interface LabelRepository extends JpaRepository<Label, UUID> {
-    List<Label> findByDeletedFalse();
+    List<Label> findByUserIdAndDeletedFalse(String userId);
 
-    List<Label> findByUpdatedAtAfter(LocalDateTime updatedAfter);
+    List<Label> findByUserIdAndUpdatedAtAfter(String userId, LocalDateTime updatedAfter);
 }

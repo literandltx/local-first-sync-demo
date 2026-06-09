@@ -1,6 +1,6 @@
 import {Injectable, inject, OnDestroy} from '@angular/core';
-import {HttpClient, HttpErrorResponse} from '@angular/common/http';
-import {Observable, from, firstValueFrom, timer, Subscription} from 'rxjs';
+import {HttpClient, HttpErrorResponse, HttpHeaders} from '@angular/common/http';
+import {Observable, from, firstValueFrom, Subscription} from 'rxjs';
 import {Label, LabelCreateRequest, LabelUpdateRequest} from './label.model';
 import {AppDB} from './app.db';
 import {HealthCheckService} from './health-check.service';
@@ -17,6 +17,7 @@ export class LabelService implements OnDestroy {
   private health = inject(HealthCheckService);
 
   private baseUrl = localStorage.getItem('backend_url') || '';
+  private userId = localStorage.getItem('user_id') || 'test_user_1';
   private isSyncing = false;
 
   private rxStomp = new RxStomp();
@@ -27,18 +28,31 @@ export class LabelService implements OnDestroy {
     toObservable(this.health.isHealthy)
       .pipe(takeUntilDestroyed())
       .subscribe((isHealthy) => {
-      if (isHealthy && this.baseUrl) {
-        this.processSyncQueue();
-      }
-    });
+        if (isHealthy && this.baseUrl) {
+          this.processSyncQueue();
+        }
+      });
 
     if (this.baseUrl) {
       this.connectWebSocket(this.baseUrl);
     }
   }
 
-  updateConfig(url: string) {
+  async updateConfig(url: string, userId: string) {
     this.baseUrl = url.replace(/\/$/, '');
+
+    if (this.userId !== userId) {
+      this.userId = userId;
+
+      console.log(`Switching user to ${userId}. Clearing local database cache...`);
+      await this.db.transaction('rw', this.db.labels, this.db.syncQueue, async () => {
+        await this.db.labels.clear();
+        await this.db.syncQueue.clear();
+      });
+
+      localStorage.removeItem('lastLabelSync');
+    }
+
     this.connectWebSocket(this.baseUrl);
   }
 
@@ -96,6 +110,10 @@ export class LabelService implements OnDestroy {
     this.processSyncQueue();
   }
 
+  private getRequestHeaders(): HttpHeaders {
+    return new HttpHeaders().set('X-User-Id', this.userId);
+  }
+
   private connectWebSocket(url: string) {
     if (!url) {
       return;
@@ -113,6 +131,9 @@ export class LabelService implements OnDestroy {
 
     this.rxStomp.configure({
       brokerURL: wsUrl,
+      connectHeaders: {
+        userId: this.userId
+      },
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
@@ -121,19 +142,18 @@ export class LabelService implements OnDestroy {
     this.rxStomp.activate();
 
     this.connectionSubscription = this.rxStomp.connected$.subscribe(async () => {
-      console.log('WebSocket Connected! Pulling updates...');
+      console.log(`WebSocket Connected for user: ${this.userId}! Pulling updates...`);
       await this.processSyncQueue();
       await this.pullServerChanges();
     });
 
-    this.wsSubscription = this.rxStomp.watch('/topic/labels').subscribe(async (message) => {
+    this.wsSubscription = this.rxStomp.watch('/user/queue/labels').subscribe(async (message) => {
       const updatedLabel: Label = JSON.parse(message.body);
-      console.log('Update received via WebSocket', updatedLabel);
+      console.log('Private user-specific update received via WebSocket', updatedLabel);
       await this.db.labels.put(updatedLabel);
       localStorage.setItem('lastLabelSync', new Date().toISOString());
     });
   }
-
 
   private async queueAction(entityId: string, action: 'CREATE' | 'UPDATE' | 'DELETE', payload: any) {
     await this.db.syncQueue.add({
@@ -152,15 +172,16 @@ export class LabelService implements OnDestroy {
 
     try {
       const queue = await this.db.syncQueue.orderBy('id').toArray();
+      const headers = this.getRequestHeaders();
 
       for (const item of queue) {
         try {
           if (item.action === 'CREATE') {
-            await firstValueFrom(this.http.post(this.apiUrl, item.payload));
+            await firstValueFrom(this.http.post(this.apiUrl, item.payload, {headers}));
           } else if (item.action === 'UPDATE') {
-            await firstValueFrom(this.http.put(`${this.apiUrl}/${item.entityId}`, item.payload));
+            await firstValueFrom(this.http.put(`${this.apiUrl}/${item.entityId}`, item.payload, {headers}));
           } else if (item.action === 'DELETE') {
-            await firstValueFrom(this.http.delete(`${this.apiUrl}/${item.entityId}`));
+            await firstValueFrom(this.http.delete(`${this.apiUrl}/${item.entityId}`, {headers}));
           }
           await this.db.syncQueue.delete(item.id!);
 
@@ -197,10 +218,14 @@ export class LabelService implements OnDestroy {
 
   private async pullServerChanges() {
     const lastSyncTime = localStorage.getItem('lastLabelSync') || '1970-01-01T00:00:00.000Z';
+    const headers = this.getRequestHeaders();
 
     try {
       const updatedLabels = await firstValueFrom(
-        this.http.get<Label[]>(`${this.apiUrl}?updatedAfter=${lastSyncTime}`)
+        this.http.get<Label[]>(
+          `${this.apiUrl}?updatedAfter=${lastSyncTime}`,
+          {headers}
+        )
       );
 
       if (updatedLabels && updatedLabels.length > 0) {

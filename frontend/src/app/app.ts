@@ -18,6 +18,7 @@ export class App implements OnInit {
   private appDb = inject(AppDB);
 
   public backendUrl = signal(localStorage.getItem('backend_url') || '');
+  public userId = signal(localStorage.getItem('user_id') || 'test_user_1');
 
   public labels = signal<Label[]>([]);
   public newLabelName = signal('');
@@ -33,12 +34,15 @@ export class App implements OnInit {
     this.fetchLabels();
   }
 
-  applySettings() {
+  async applySettings() {
     const url = this.backendUrl().trim();
+    const currentUserId = this.userId().trim();
+
     localStorage.setItem('backend_url', url);
+    localStorage.setItem('user_id', currentUserId);
 
     this.healthService.updateBaseUrl(url);
-    this.labelService.updateConfig(url);
+    await this.labelService.updateConfig(url, currentUserId);
   }
 
   fetchLabels() {

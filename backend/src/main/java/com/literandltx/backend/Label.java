@@ -18,6 +18,9 @@ public class Label {
     @Id
     private UUID uuid;
 
+    @Column(name = "user_id", nullable = false)
+    private String userId;
+
     @Column(nullable = false)
     private String name;
 

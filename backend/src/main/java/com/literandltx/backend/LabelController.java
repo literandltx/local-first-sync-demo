@@ -23,39 +23,52 @@ public class LabelController {
     }
 
     @PostMapping
-    public ResponseEntity<LabelResponseDto> createLabel(@RequestBody LabelCreateRequestDto request) {
-        LabelResponseDto createdLabel = labelService.createLabel(request);
+    public ResponseEntity<LabelResponseDto> createLabel(
+            @RequestHeader(value = "X-User-Id", defaultValue = "unknown") String userId,
+            @RequestBody LabelCreateRequestDto request
+    ) {
+        LabelResponseDto createdLabel = labelService.createLabel(request, userId);
         return new ResponseEntity<>(createdLabel, HttpStatus.CREATED);
     }
 
     @GetMapping
     public ResponseEntity<List<LabelResponseDto>> getAllLabels(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime updatedAfter) {
-
+            @RequestHeader(value = "X-User-Id", defaultValue = "unknown") String userId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime updatedAfter
+    ) {
         if (updatedAfter != null) {
-            List<LabelResponseDto> updatedLabels = labelService.getLabelsUpdatedAfter(updatedAfter.toLocalDateTime());
+            List<LabelResponseDto> updatedLabels = labelService.getLabelsUpdatedAfter(updatedAfter.toLocalDateTime(), userId);
             return ResponseEntity.ok(updatedLabels);
         }
 
-        List<LabelResponseDto> labels = labelService.getAllLabels();
+        List<LabelResponseDto> labels = labelService.getAllLabels(userId);
         return ResponseEntity.ok(labels);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<LabelResponseDto> getLabelById(@PathVariable UUID id) {
+    public ResponseEntity<LabelResponseDto> getLabelById(
+            @RequestHeader(value = "X-User-Id", defaultValue = "unknown") String userId,
+            @PathVariable UUID id
+    ) {
         LabelResponseDto label = labelService.getLabelById(id);
         return ResponseEntity.ok(label);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<LabelResponseDto> updateLabel(@PathVariable UUID id, @RequestBody LabelUpdateRequestDto request) {
-        LabelResponseDto updatedLabel = labelService.updateLabel(id, request);
+    public ResponseEntity<LabelResponseDto> updateLabel(
+            @RequestHeader(value = "X-User-Id", defaultValue = "unknown") String userId,
+            @PathVariable UUID id, @RequestBody LabelUpdateRequestDto request
+    ) {
+        LabelResponseDto updatedLabel = labelService.updateLabel(id, request, userId);
         return ResponseEntity.ok(updatedLabel);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteLabel(@PathVariable UUID id) {
-        labelService.deleteLabel(id);
+    public ResponseEntity<Void> deleteLabel(
+            @RequestHeader(value = "X-User-Id", defaultValue = "unknown") String userId,
+            @PathVariable UUID id
+    ) {
+        labelService.deleteLabel(id, userId);
         return ResponseEntity.noContent().build();
     }
 }
